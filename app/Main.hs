@@ -1,6 +1,7 @@
 module Main where
 
-import Lib
+import qualified Dumper
+
 
 main :: IO ()
-main = someFunc
+main = Dumper.main

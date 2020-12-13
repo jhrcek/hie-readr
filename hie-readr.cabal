@@ -22,27 +22,41 @@ source-repository head
     type:     git
     location: https://github.com/jhrcek/hie-readr
 
-library
-    exposed-modules:  Lib
-    hs-source-dirs:   src
+common common-options
     default-language: Haskell2010
     build-depends:    base >=4.7 && <5
+    ghc-options:      -Wall
+                      -Wincomplete-uni-patterns
+                      -Wincomplete-record-updates
+                      -Wcompat
+                      -Widentities
+                      -Wredundant-constraints
+                      -Wpartial-fields
+                      -Wno-unrecognised-pragmas
+                      -Wmissing-deriving-strategies
+                      -fwrite-ide-info
+
+
+library
+    import:           common-options
+    exposed-modules:  Dumper
+    hs-source-dirs:   src
+    build-depends:    containers,
+                      filepath,
+                      ghc,
+                      ghc-paths
 
 executable hie-readr-exe
+    import:           common-options
     main-is:          Main.hs
     hs-source-dirs:   app
-    default-language: Haskell2010
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N
-    build-depends:
-        base >=4.7 && <5,
-        hie-readr -any
+    build-depends:    hie-readr
 
 test-suite hie-readr-test
+    import:           common-options
     type:             exitcode-stdio-1.0
     main-is:          Spec.hs
     hs-source-dirs:   test
-    default-language: Haskell2010
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N
-    build-depends:
-        base >=4.7 && <5,
-        hie-readr -any
+    build-depends:    hie-readr
