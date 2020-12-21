@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP            #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Dumper (
@@ -10,8 +11,8 @@ import qualified Data.Set as Set
 import DynFlags (DynFlags, LlvmConfig (..), defaultDynFlags)
 import GHC.Paths (libdir)
 import HieBin (hie_file_result, readHieFile)
-import HieTypes (ContextInfo (..), HieAST (..), HieASTs (getAsts), HieFile (..),
-                 IdentifierDetails (..), NodeInfo (..))
+import HieTypes (HieAST (..), HieASTs (getAsts), HieFile (..), IdentifierDetails (..),
+                 NodeInfo (..))
 import HieUtils (flattenAst)
 import Module (moduleName, moduleNameString, moduleUnitId, unitIdString)
 import Name (nameModule_maybe)
@@ -30,7 +31,12 @@ main = do
         [hieFilePath]
             | takeExtension hieFilePath == ".hie" -> do
                 systemSettings <- initSysTools libdir
-                let dynFlags = defaultDynFlags systemSettings (LlvmConfig [] [])
+                let dynFlags = defaultDynFlags systemSettings
+#if __GLASGOW_HASKELL__ >= 810
+                        (LlvmConfig [] [])
+#else
+                        ([], [])
+#endif
                 dumpFile dynFlags hieFilePath
         _ -> error "Usage: dumper file.hie"
 
@@ -47,8 +53,8 @@ dumpFile dynFlags hieFilePath = withHieFile hieFilePath $ \HieFile {hie_hs_file,
     putStrLn $ "    Contains a map of size " <> show (Map.size m)
     for_ (Map.toList m) $ \(fs, ast) -> do
         putStrLn $ "AST for " <> showO fs
-        for_ (flattenAst ast) $ \Node {nodeSpan, nodeInfo} -> do
-            putStrLn $ "    At " <> showO nodeSpan
+        for_ (flattenAst ast) $ \Node {nodeSpan, nodeInfo, nodeChildren} -> do
+            putStrLn $ "    At " <> showO nodeSpan <> ", " <> show (length nodeChildren) <> " children"
             printNodeInfo dynFlags nodeInfo
   where
     showO :: Outputable a => a -> String
@@ -65,26 +71,14 @@ printNodeInfo df (NodeInfo annots _ntype nodeIdentifiers) = do
         putStrLn $ case ident of
             Left modName -> "              Module: " <> moduleNameString modName
             Right name ->
-                "              Name: " <> Outputable.showSDoc df (ppr name) <> " ("
-                    <> ( case nameModule_maybe name of
-                            Nothing -> "this module"
-                            Just m ->
-                                let u = unitIdString (moduleUnitId m); mn = moduleNameString (moduleName m)
-                                 in u <> ":" <> mn
-                       )
-                    <> ")"
-        for_ identInfoSet $ \contextInfo -> putStrLn $ case contextInfo of
-            Use            -> "                Use"
-            MatchBind      -> "                MatchBind"
-            IEThing _      -> "                IEThing"
-            TyDecl         -> "                TyDecl"
-            ValBind {}     -> "                ValBind"
-            PatternBind {} -> "                PatternBind"
-            ClassTyDecl _  -> "                ClassTyDecl"
-            Decl _ _       -> "                Decl"
-            TyVarBind _ _  -> "                TyVarBind"
-            RecField _ _   -> "                RecField"
-
+                let modul = case nameModule_maybe name of
+                        Nothing -> "this module"
+                        Just m ->
+                            let u = unitIdString (moduleUnitId m)
+                                mn = moduleNameString (moduleName m)
+                            in u <> ":" <> mn
+                in "              Name: " <> Outputable.showSDoc df (ppr name) <> " (" <> modul <> ")"
+        for_ identInfoSet $ \contextInfo -> putStrLn $ "                " <> show contextInfo
 
 withHieFile :: FilePath -> (HieFile -> IO a) -> IO a
 withHieFile hieFilePath act = do

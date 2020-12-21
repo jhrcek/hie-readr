@@ -39,12 +39,14 @@ common common-options
 
 library
     import:           common-options
-    exposed-modules:  Dumper
+    exposed-modules:  Dumper,
+                      DeclDeps
     hs-source-dirs:   src
     build-depends:    containers,
                       filepath,
                       ghc,
-                      ghc-paths
+                      ghc-paths,
+                      text
 
 executable hie-readr-exe
     import:           common-options
