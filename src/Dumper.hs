@@ -8,6 +8,7 @@ module Dumper (
 import Data.Foldable (for_)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified DeclDeps
 import DynFlags (DynFlags, LlvmConfig (..), defaultDynFlags)
 import GHC.Paths (libdir)
 import HieBin (hie_file_result, readHieFile)
@@ -23,7 +24,6 @@ import System.Environment (getArgs)
 import System.FilePath (takeExtension)
 import UniqSupply (mkSplitUniqSupply)
 
-
 main :: IO ()
 main = do
     args <- getArgs
@@ -38,6 +38,7 @@ main = do
                         ([], [])
 #endif
                 dumpFile dynFlags hieFilePath
+                DeclDeps.dumpTopLevelDefinitions dynFlags hieFilePath
         _ -> error "Usage: dumper file.hie"
 
 
@@ -74,9 +75,9 @@ printNodeInfo df (NodeInfo annots _ntype nodeIdentifiers) = do
                 let modul = case nameModule_maybe name of
                         Nothing -> "this module"
                         Just m ->
-                            let u = unitIdString (moduleUnitId m)
-                                mn = moduleNameString (moduleName m)
-                            in u <> ":" <> mn
+                            let unitIdStr = unitIdString (moduleUnitId m)
+                                modNameStr = moduleNameString (moduleName m)
+                            in unitIdStr <> ":" <> modNameStr
                 in "              Name: " <> Outputable.showSDoc df (ppr name) <> " (" <> modul <> ")"
         for_ identInfoSet $ \contextInfo -> putStrLn $ "                " <> show contextInfo
 
