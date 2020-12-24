@@ -5,31 +5,39 @@
 {-| Discover dependencies between declarations.
 We say that Declaration X depends on Y if Y is used anywhere in the declaration of X.
 -}
-module DeclDeps (dumpTopLevelDefinitions) where
+module DeclDeps (main) where
 
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+
+import Data.Bifunctor (Bifunctor (bimap))
 import Data.Containers.ListUtils (nubOrd)
-import Data.Foldable (traverse_)
 import Data.Function ((&))
 import Data.List (sortOn)
-import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
-import qualified Data.Set as Set
 import Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import DynFlags (DynFlags)
-import HieBin (hie_file_result, readHieFile)
+import Hie (withHieFile)
 import HieTypes (ContextInfo (Use), HieAST (..), HieASTs (getAsts), HieFile (..), NodeInfo (..),
                  TypeIndex, identInfo)
 import HieUtils (flattenAst)
 import Module (Module, moduleName, moduleNameString, moduleUnitId, unitIdString)
 import Name (Name, nameModule_maybe, nameOccName, occNameString)
-import NameCache (NameCache, initNameCache)
-import UniqSupply (mkSplitUniqSupply)
+import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist, listDirectory,
+                         withCurrentDirectory)
+import System.Environment (getArgs)
+import System.FilePath (isExtensionOf)
 
 
-dumpTopLevelDefinitions :: DynFlags -> FilePath -> IO ()
-dumpTopLevelDefinitions _ hieFilePath = withHieFile hieFilePath $ \HieFile {hie_module, hie_asts} -> do
+main :: IO ()
+main = do
+    args <- getArgs
+    case args of
+        [dirWithHieFiles] -> dumpDeclDeps dirWithHieFiles "all.usages"
+        _                 -> error "Usage: hie-decl-deps DIR-WITH-HIE-FILES"
+
+extractDeclDeps :: FilePath -> IO DeclDeps
+extractDeclDeps hieFilePath = withHieFile hieFilePath $ \HieFile {hie_module, hie_asts} -> do
     let topLevelDeclAsts :: [HieAST TypeIndex]
         topLevelDeclAsts = getAsts hie_asts
             & Map.elems
@@ -37,10 +45,11 @@ dumpTopLevelDefinitions _ hieFilePath = withHieFile hieFilePath $ \HieFile {hie_
             & filter isTopLevelDecl
     topLevelDeclAsts
         & mapMaybe (\hieAst -> fmap (,getUsedSymbols hieAst) (getTopLevelDeclInfo hie_module hieAst))
-        & traverse_ (\(declSym, usedSyms) -> do
-            Text.putStrLn (prettySymbol declSym)
-            traverse_ (\s -> Text.putStrLn $ "    " <> prettySymbol s) usedSyms
-        )
+        & pure
+        -- & traverse_ (\(declSym, usedSyms) -> do
+        --     Text.putStrLn (prettySymbol declSym)
+        --     traverse_ (\s -> Text.putStrLn $ "    " <> prettySymbol s) usedSyms
+        -- )
 
 
 isTopLevelDecl :: HieAST a -> Bool
@@ -82,17 +91,6 @@ mkSymbol  name modul = Symbol
     (ModuleName . Text.pack . moduleNameString $ moduleName modul)
     (SymbolName . Text.pack . occNameString $ nameOccName name)
 
-withHieFile :: FilePath -> (HieFile -> IO a) -> IO a
-withHieFile hieFilePath act = do
-    nc0 <- mkNameCache
-    (hieFileResult, _nc1) <- readHieFile nc0 hieFilePath
-    act (hie_file_result hieFileResult)
-
-
-mkNameCache :: IO NameCache
-mkNameCache = do
-    uniq_supply <- mkSplitUniqSupply 'z'
-    return $ initNameCache uniq_supply []
 
 prettySymbol :: Symbol -> Text
 prettySymbol (Symbol p m s) =
@@ -114,4 +112,35 @@ newtype ModuleName = ModuleName {unModuleName :: Text} deriving (Eq, Ord, Show) 
 
 newtype SymbolName = SymbolName {unSymbolName :: Text} deriving (Eq, Ord, Show) via Text
 
-type Edge = (Symbol, Symbol)
+-- | Declaration dependencies:
+-- for each top level definition we have a list of all symbols used within its definition
+type DeclDeps = [(Symbol,[Symbol])]
+
+-- | Recursively search for @.hie@ and @.hie-boot@  files in given directory
+getHieFilesIn :: FilePath -> IO [FilePath]
+getHieFilesIn path = do
+  isFile <- doesFileExist path
+  if isFile && ("hie" `isExtensionOf` path || "hie-boot" `isExtensionOf` path) then do
+      path' <- canonicalizePath path
+      return [path']
+  else do
+    isDir <- doesDirectoryExist path
+    if isDir then do
+      cnts <- listDirectory path
+      withCurrentDirectory path $ foldMap getHieFilesIn cnts
+    else
+      return []
+
+-- | Find all @.hie@ files in given directory and extract DeclDeps from them
+getDeclDepsInDir :: FilePath -> IO DeclDeps
+getDeclDepsInDir dirWithHieFiles = do
+    hieFiles <- getHieFilesIn dirWithHieFiles
+    concat <$> traverse extractDeclDeps hieFiles
+
+dumpDeclDeps :: FilePath -> FilePath -> IO ()
+dumpDeclDeps dirWithHieFiles targetFile = do
+    deps <- getDeclDepsInDir dirWithHieFiles
+    -- TODO proper serialization
+    writeFile targetFile $ unlines $ fmap (show . bimap toTriple  (fmap toTriple)) deps
+  where
+    toTriple (Symbol p m n) = (unPackageName p, unModuleName m, unSymbolName n)

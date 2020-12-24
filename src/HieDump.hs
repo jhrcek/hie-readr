@@ -1,28 +1,26 @@
 {-# LANGUAGE CPP            #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Dumper (
+module HieDump (
     main,
 ) where
 
-import Data.Foldable (for_)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import qualified DeclDeps
+
+import Data.Foldable (for_)
 import DynFlags (DynFlags, LlvmConfig (..), defaultDynFlags)
 import GHC.Paths (libdir)
-import HieBin (hie_file_result, readHieFile)
+import Hie (withHieFile)
 import HieTypes (HieAST (..), HieASTs (getAsts), HieFile (..), IdentifierDetails (..),
                  NodeInfo (..))
 import HieUtils (flattenAst)
 import Module (moduleName, moduleNameString, moduleUnitId, unitIdString)
 import Name (nameModule_maybe)
-import NameCache (NameCache, initNameCache)
 import Outputable (Outputable, ppr, showSDoc)
 import SysTools (initSysTools)
 import System.Environment (getArgs)
 import System.FilePath (takeExtension)
-import UniqSupply (mkSplitUniqSupply)
 
 main :: IO ()
 main = do
@@ -30,16 +28,20 @@ main = do
     case args of
         [hieFilePath]
             | takeExtension hieFilePath == ".hie" -> do
-                systemSettings <- initSysTools libdir
-                let dynFlags = defaultDynFlags systemSettings
+                dynFlags <- initDynFlags
+                dumpFile dynFlags hieFilePath
+        _ -> error "Usage: hie-dump file.hie"
+
+
+initDynFlags :: IO DynFlags
+initDynFlags = do
+    systemSettings <- initSysTools libdir
+    pure $ defaultDynFlags systemSettings
 #if __GLASGOW_HASKELL__ >= 810
                         (LlvmConfig [] [])
 #else
                         ([], [])
 #endif
-                dumpFile dynFlags hieFilePath
-                DeclDeps.dumpTopLevelDefinitions dynFlags hieFilePath
-        _ -> error "Usage: dumper file.hie"
 
 
 dumpFile :: DynFlags -> FilePath -> IO ()
@@ -80,15 +82,3 @@ printNodeInfo df (NodeInfo annots _ntype nodeIdentifiers) = do
                             in unitIdStr <> ":" <> modNameStr
                 in "              Name: " <> Outputable.showSDoc df (ppr name) <> " (" <> modul <> ")"
         for_ identInfoSet $ \contextInfo -> putStrLn $ "                " <> show contextInfo
-
-withHieFile :: FilePath -> (HieFile -> IO a) -> IO a
-withHieFile hieFilePath act = do
-    nc0 <- mkNameCache
-    (hieFileResult, _nc1) <- readHieFile nc0 hieFilePath
-    act (hie_file_result hieFileResult)
-
-
-mkNameCache :: IO NameCache
-mkNameCache = do
-    uniq_supply <- mkSplitUniqSupply 'z'
-    return $ initNameCache uniq_supply []
