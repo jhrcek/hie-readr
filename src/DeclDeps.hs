@@ -96,6 +96,13 @@ newtype SymbolName = SymbolName {unSymbolName :: Text} deriving (Eq, Ord, Show) 
 -- for each top level definition we have a list of all symbols used within its definition
 type DeclDeps = [(Symbol,[Symbol])]
 
+-- UnitId often contain some kind of disambiguating hash, which we don't care about
+-- "optparse-applicative-0.15.1.0-8iKVDKS5G4m7jqr9SztVW9" -> "optparse-applicative-0.15.1.0"
+stripHash :: PackageName -> PackageName
+stripHash  (PackageName n) =
+    let suffix = Text.takeWhileEnd (/='-') n
+    in PackageName $ if Text.length suffix == 21 then Text.dropEnd 22 n else n
+
 -- | Recursively search for @.hie@ and @.hie-boot@  files in given directory
 getHieFilesIn :: FilePath -> IO [FilePath]
 getHieFilesIn path = do
@@ -121,6 +128,10 @@ dumpDeclDeps :: FilePath -> FilePath -> Bool -> IO ()
 dumpDeclDeps dirWithHieFiles targetFile stripHashes = do
     deps <- getDeclDepsInDir dirWithHieFiles
     -- TODO proper serialization
-    writeFile targetFile $ unlines $ fmap (show . bimap toTriple  (fmap toTriple)) deps
+    writeFile targetFile $ unlines $ fmap (show . bimap toTriple (fmap toTriple)) deps
   where
-    toTriple (Symbol p m n) = (unPackageName p, unModuleName m, unSymbolName n)
+    toTriple (Symbol p m n) =
+        ( unPackageName $ if stripHashes then stripHash p else p
+        , unModuleName m
+        , unSymbolName n
+        )

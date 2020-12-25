@@ -53,5 +53,5 @@ commandParser = subparser
           <$> strArgument (metavar "FILE.hie" <> help ".hie file to dump")
       declDepsOptions = fmap DeclDeps $ DeclDepsOpts
           <$> strArgument (metavar "DIRECTORY" <> help "Directory containing .hie files to process")
-          <*> strOption (long "out" <> value "all.usages" <> showDefault <> help "Output file")
+          <*> strOption (long "out" <> metavar "FILE" <> value "all.usages" <> showDefault <> help "Output file")
           <*> switch (long "strip-hash" <> help "Strip hashes from the end of UnitIDs")
