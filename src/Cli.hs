@@ -71,13 +71,13 @@ parseCommand =
 commandParser :: Parser Command
 commandParser =
     subparser
-        ( command "dump" (info dumpOptions (progDesc "Dump .hie file"))
-            <> command "decl-deps" (info declDepsOptions (progDesc "DumpRecord changes to the repository"))
+        ( command "dump" (info (helper <*> dumpOptions) (progDesc "Dump .hie file"))
+            <> command "decl-deps" (info (helper <*> declDepsOptions) (progDesc "Dump declaration dependencies"))
         )
   where
     dumpOptions =
         Dump . DumpOpts
-            <$> strArgument (metavar "FILE.hie" <> help ".hie file to dump")
+            <$> strArgument (metavar "HIEFILE" <> help ".hie file to dump")
     declDepsOptions =
         fmap DeclDeps $
             DeclDepsOpts

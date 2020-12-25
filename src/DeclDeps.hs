@@ -14,6 +14,7 @@ import qualified Data.Text as Text
 
 import Control.Monad (when)
 import Data.Bifunctor (Bifunctor (bimap))
+import Data.Char (isDigit, isLower, isUpper)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Function ((&))
 import Data.List (sortOn)
@@ -126,8 +127,12 @@ type DeclDeps = [(Symbol, [Symbol])]
 -- "optparse-applicative-0.15.1.0-8iKVDKS5G4m7jqr9SztVW9" -> "optparse-applicative-0.15.1.0"
 stripHash :: PackageName -> PackageName
 stripHash (PackageName n) =
-    let suffix = Text.takeWhileEnd (/= '-') n
-     in PackageName $ if Text.length suffix == 21 then Text.dropEnd 22 n else n
+    PackageName $
+        if Text.any isLower suffix && Text.any isUpper suffix && Text.any isDigit suffix
+            then Text.dropEnd (Text.length suffix + 1) n
+            else n
+  where
+    suffix = Text.takeWhileEnd (/= '-') n
 
 
 -- | Recursively search for @.hie@ and @.hie-boot@  files in given directory
