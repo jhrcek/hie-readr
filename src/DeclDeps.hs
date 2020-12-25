@@ -5,7 +5,7 @@
 {-| Discover dependencies between declarations.
 We say that Declaration X depends on Y if Y is used anywhere in the declaration of X.
 -}
-module DeclDeps (main) where
+module DeclDeps (dumpDeclDeps) where
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -25,16 +25,8 @@ import Module (Module, moduleName, moduleNameString, moduleUnitId, unitIdString)
 import Name (Name, nameModule_maybe, nameOccName, occNameString)
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist, listDirectory,
                          withCurrentDirectory)
-import System.Environment (getArgs)
 import System.FilePath (isExtensionOf)
 
-
-main :: IO ()
-main = do
-    args <- getArgs
-    case args of
-        [dirWithHieFiles] -> dumpDeclDeps dirWithHieFiles "all.usages"
-        _                 -> error "Usage: hie-decl-deps DIR-WITH-HIE-FILES"
 
 extractDeclDeps :: FilePath -> IO DeclDeps
 extractDeclDeps hieFilePath = withHieFile hieFilePath $ \HieFile {hie_module, hie_asts} -> do
@@ -46,10 +38,6 @@ extractDeclDeps hieFilePath = withHieFile hieFilePath $ \HieFile {hie_module, hi
     topLevelDeclAsts
         & mapMaybe (\hieAst -> fmap (,getUsedSymbols hieAst) (getTopLevelDeclInfo hie_module hieAst))
         & pure
-        -- & traverse_ (\(declSym, usedSyms) -> do
-        --     Text.putStrLn (prettySymbol declSym)
-        --     traverse_ (\s -> Text.putStrLn $ "    " <> prettySymbol s) usedSyms
-        -- )
 
 
 isTopLevelDecl :: HieAST a -> Bool
@@ -91,14 +79,6 @@ mkSymbol  name modul = Symbol
     (ModuleName . Text.pack . moduleNameString $ moduleName modul)
     (SymbolName . Text.pack . occNameString $ nameOccName name)
 
-
-prettySymbol :: Symbol -> Text
-prettySymbol (Symbol p m s) =
-    -- TODO use some formatting lib
-    unSymbolName s <> Text.replicate (25 - Text.length (unSymbolName s)) " "
-    <> unModuleName m <> " ("
-    <> unPackageName p <> ")"
-
 data Symbol = Symbol
   { _symbolPackage :: PackageName,
     _symbolModule  :: ModuleName,
@@ -137,8 +117,8 @@ getDeclDepsInDir dirWithHieFiles = do
     hieFiles <- getHieFilesIn dirWithHieFiles
     concat <$> traverse extractDeclDeps hieFiles
 
-dumpDeclDeps :: FilePath -> FilePath -> IO ()
-dumpDeclDeps dirWithHieFiles targetFile = do
+dumpDeclDeps :: FilePath -> FilePath -> Bool -> IO ()
+dumpDeclDeps dirWithHieFiles targetFile stripHashes = do
     deps <- getDeclDepsInDir dirWithHieFiles
     -- TODO proper serialization
     writeFile targetFile $ unlines $ fmap (show . bimap toTriple  (fmap toTriple)) deps

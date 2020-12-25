@@ -1,9 +1,10 @@
 {-# LANGUAGE CPP            #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module HieDump (
-    main,
-) where
+module Dump
+    ( initDynFlags
+    , dumpFile
+    ) where
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -19,18 +20,6 @@ import Module (moduleName, moduleNameString, moduleUnitId, unitIdString)
 import Name (nameModule_maybe)
 import Outputable (Outputable, ppr, showSDoc)
 import SysTools (initSysTools)
-import System.Environment (getArgs)
-import System.FilePath (takeExtension)
-
-main :: IO ()
-main = do
-    args <- getArgs
-    case args of
-        [hieFilePath]
-            | takeExtension hieFilePath == ".hie" -> do
-                dynFlags <- initDynFlags
-                dumpFile dynFlags hieFilePath
-        _ -> error "Usage: hie-dump file.hie"
 
 
 initDynFlags :: IO DynFlags

@@ -39,28 +39,23 @@ common common-options
 
 library
     import:           common-options
-    exposed-modules:  DeclDeps,
+    exposed-modules:  Cli,
+                      DeclDeps,
                       Hie,
-                      HieDump
+                      Dump
     hs-source-dirs:   src
     build-depends:    containers,
                       directory,
                       filepath,
                       ghc,
                       ghc-paths,
+                      optparse-applicative,
                       text
 
 executable hie-dump
     import:           common-options
     main-is:          Main.hs
-    hs-source-dirs:   hie-dump
-    ghc-options:      -threaded -rtsopts -with-rtsopts=-N
-    build-depends:    hie-readr
-
-executable hie-decl-deps
-    import:           common-options
-    main-is:          Main.hs
-    hs-source-dirs:   hie-decl-deps
+    hs-source-dirs:   app
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N
     build-depends:    hie-readr
 

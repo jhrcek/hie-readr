@@ -4,7 +4,7 @@ cradle:
       component: "hie-readr:lib"
 
     - path: "./app/Main.hs"
-      component: "hie-readr:exe:hie-readr-exe"
+      component: "hie-readr:exe:hie-dump"
 
     - path: "./test"
       component: "hie-readr:test:hie-readr-test"
