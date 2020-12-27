@@ -34,7 +34,6 @@ common common-options
                       -Wpartial-fields
                       -Wno-unrecognised-pragmas
                       -Wmissing-deriving-strategies
-                      -fwrite-ide-info
 
 
 library

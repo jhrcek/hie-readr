@@ -50,11 +50,17 @@ extractDeclDeps hieFilePath = withHieFile hieFilePath $ \HieFile{hie_module, hie
         topLevelDeclAsts =
             getAsts hie_asts
                 & Map.elems
-                & concatMap flattenAst
-                & filter isTopLevelDecl
+                & concatMap findTopLevelDeclAsts
+
     topLevelDeclAsts
-        & mapMaybe (\hieAst -> fmap (,getUsedSymbols hieAst) (getTopLevelDeclInfo hie_module hieAst))
+        & mapMaybe (\hieAst -> fmap (,getUsedSymbols hieAst) (getTopLevelDeclSymbol hie_module hieAst))
         & pure
+
+
+findTopLevelDeclAsts :: HieAST a -> [HieAST a]
+findTopLevelDeclAsts ast
+    | isTopLevelDecl ast = [ast]
+    | otherwise = concatMap findTopLevelDeclAsts (nodeChildren ast)
 
 
 isTopLevelDecl :: HieAST a -> Bool
@@ -66,8 +72,8 @@ isTopLevelDecl Node{nodeInfo} =
             || Set.member ("DataDecl", "TyClDecl") anns
 
 
-getTopLevelDeclInfo :: Module -> HieAST a -> Maybe Symbol
-getTopLevelDeclInfo currentModule Node {-nodeSpan-}{nodeChildren} =
+getTopLevelDeclSymbol :: Module -> HieAST a -> Maybe Symbol
+getTopLevelDeclSymbol currentModule Node{nodeChildren} =
     case nodeChildren of
         [] -> Nothing
         -- Assumption: The name of the top-level definition can be extracted from the first child of the definition node
@@ -80,7 +86,7 @@ getTopLevelDeclInfo currentModule Node {-nodeSpan-}{nodeChildren} =
 
 getUsedSymbols :: HieAST a -> [Symbol]
 getUsedSymbols =
-    sortOn _symbolName
+    sortOn symbolName
         . nubOrd
         . mapMaybe
             ( \Node{nodeInfo} -> case Map.lookupMin (nodeIdentifiers nodeInfo) of
@@ -101,9 +107,9 @@ mkSymbol name modul =
 
 
 data Symbol = Symbol
-    { _symbolPackage :: PackageName
-    , _symbolModule :: ModuleName
-    , _symbolName :: SymbolName
+    { symbolPackage :: PackageName
+    , symbolModule :: ModuleName
+    , symbolName :: SymbolName
     }
     deriving stock (Show, Eq, Ord)
 
