@@ -14,7 +14,7 @@ import qualified Data.Text as Text
 
 import Control.Monad (when)
 import Data.Bifunctor (Bifunctor (bimap))
-import Data.Char (isDigit, isLower, isUpper)
+import Data.Char (isLower, isUpper)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Function ((&))
 import Data.List (sortOn)
@@ -131,10 +131,11 @@ type DeclDeps = [(Symbol, [Symbol])]
 
 -- UnitId often contain some kind of disambiguating hash, which we don't care about
 -- "optparse-applicative-0.15.1.0-8iKVDKS5G4m7jqr9SztVW9" -> "optparse-applicative-0.15.1.0"
+-- NOTE: some hashes don't have any digits, e.g. "quad-0.0.0-JIKQGKGJTRzJUDZPluENan"
 stripHash :: PackageName -> PackageName
 stripHash (PackageName n) =
     PackageName $
-        if Text.any isLower suffix && Text.any isUpper suffix && Text.any isDigit suffix
+        if Text.any isLower suffix && Text.any isUpper suffix && Text.length suffix >= 20
             then Text.dropEnd (Text.length suffix + 1) n
             else n
   where
