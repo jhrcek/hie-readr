@@ -10,58 +10,56 @@ homepage:           https://github.com/jhrcek/hie-readr#readme
 bug-reports:        https://github.com/jhrcek/hie-readr/issues
 synopsis:           A tool to dump information contained in .hie files
 description:
-    Please see the README on GitHub at <https://github.com/jhrcek/hie-readr#readme>
+  Please see the README on GitHub at <https://github.com/jhrcek/hie-readr#readme>
 
 category:           Development
 build-type:         Simple
 extra-source-files:
-    README.md
-    ChangeLog.md
+  ChangeLog.md
+  README.md
 
 source-repository head
-    type:     git
-    location: https://github.com/jhrcek/hie-readr
+  type:     git
+  location: https://github.com/jhrcek/hie-readr
 
 common common-options
-    default-language: Haskell2010
-    build-depends:    base >=4.7 && <5
-    ghc-options:      -Wall
-                      -Wincomplete-uni-patterns
-                      -Wincomplete-record-updates
-                      -Wcompat
-                      -Widentities
-                      -Wredundant-constraints
-                      -Wpartial-fields
-                      -Wno-unrecognised-pragmas
-                      -Wmissing-deriving-strategies
-
+  default-language: Haskell2010
+  build-depends:    base >=4.7 && <5
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wcompat -Widentities -Wredundant-constraints -Wpartial-fields
+    -Wno-unrecognised-pragmas -Wmissing-deriving-strategies
+    -fwrite-ide-info -hiedir=hie
 
 library
-    import:           common-options
-    exposed-modules:  Cli,
-                      DeclDeps,
-                      Hie,
-                      Dump
-    hs-source-dirs:   src
-    build-depends:    containers,
-                      directory,
-                      filepath,
-                      ghc,
-                      ghc-paths,
-                      optparse-applicative,
-                      text
+  import:          common-options
+  exposed-modules:
+    Cli
+    DeclDeps
+    Dump
+    Hie
+
+  hs-source-dirs:  src
+  build-depends:
+    , containers
+    , directory
+    , filepath
+    , ghc
+    , ghc-paths
+    , optparse-applicative
+    , text
 
 executable hie-dump
-    import:           common-options
-    main-is:          Main.hs
-    hs-source-dirs:   app
-    ghc-options:      -threaded -rtsopts -with-rtsopts=-N
-    build-depends:    hie-readr
+  import:         common-options
+  main-is:        Main.hs
+  hs-source-dirs: app
+  ghc-options:    -threaded -rtsopts -with-rtsopts=-N
+  build-depends:  hie-readr
 
 test-suite hie-readr-test
-    import:           common-options
-    type:             exitcode-stdio-1.0
-    main-is:          Spec.hs
-    hs-source-dirs:   test
-    ghc-options:      -threaded -rtsopts -with-rtsopts=-N
-    build-depends:    hie-readr
+  import:         common-options
+  type:           exitcode-stdio-1.0
+  main-is:        Spec.hs
+  hs-source-dirs: test
+  ghc-options:    -threaded -rtsopts -with-rtsopts=-N
+  build-depends:  hie-readr

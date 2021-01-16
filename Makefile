@@ -1,6 +1,7 @@
 .PHONY: format
 format:
 	git ls-files '*.hs' | xargs fourmolu -i
+	cabal-fmt --inplace hie-readr.cabal
 
 .PHONY: install884
 install884:
