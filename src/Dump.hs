@@ -17,6 +17,8 @@ import HieTypes (
     HieAST (..),
     HieASTs (getAsts),
     HieFile (..),
+    Identifier,
+    IdentifierDetails (..),
     NodeInfo (..),
  )
 import HieUtils (flattenAst, recoverFullType, renderHieType)
@@ -27,14 +29,16 @@ import Outputable (
     alwaysQualifyModules,
     alwaysQualifyPackages,
     comma,
+    hang,
     hsep,
-    interpp'SP,
     nest,
+    parens,
     ppr,
     printForUser,
     reallyAlwaysQualifyNames,
     text,
     vcat,
+    ($$),
     (<+>),
     (<>),
  )
@@ -53,6 +57,10 @@ initDynFlags = do
                         (LlvmConfig [] [])
 #else
                         ([], [])
+#endif
+
+#if __GLASGOW_HASKELL__ < 810
+instance Outputable SDoc where ppr = id
 #endif
 
 dumpFile :: DynFlags -> FilePath -> IO ()
@@ -85,9 +93,31 @@ nodeInfoSDoc :: Outputable a => NodeInfo a -> SDoc
 nodeInfoSDoc (NodeInfo annots nodeType nodeIdentifiers) =
     vcat
         [ "nodeAnnotations =" <+> ppr annots
-        , "nodeType        =" <+> interpp'SP nodeType
-        , "nodeIdentifiers =" <+> ppr nodeIdentifiers
+        , hang ("nodeType" <+> parens (ppr (length nodeType))) 4 $
+            vcat $ map ppr nodeType
+        , hang ("nodeIdentifiers" <+> parens (ppr $ Map.size nodeIdentifiers)) 4 $
+            vcat $
+                ( \(identifier, identDetails) ->
+                    identifierSDoc identifier
+                        $$ identifierDetailsSDoc identDetails
+                )
+                    <$> Map.toList nodeIdentifiers
         ]
+
+
+identifierSDoc :: Identifier -> SDoc
+identifierSDoc identifier = case identifier of
+    Left modName -> "ModuleName:" <+> ppr modName
+    Right name -> "Name:" <+> ppr name
+
+
+identifierDetailsSDoc :: Outputable a => IdentifierDetails a -> SDoc
+identifierDetailsSDoc (IdentifierDetails mayType contextInfos) =
+    hang "IdentifierDetails" 4 $
+        vcat
+            [ "Type:" <+> maybe "N/A" ppr mayType
+            , "ContextInfo:" <+> ppr contextInfos
+            ]
 
 
 qualifyEverything :: PrintUnqualified
