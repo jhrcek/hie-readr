@@ -7,7 +7,7 @@ format:
 install884:
 	stack install --resolver lts-16.31
 
-.PHONY: install8104
-install8104:
+.PHONY: install8107
+install8107:
 	stack install
 
