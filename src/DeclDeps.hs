@@ -21,25 +21,25 @@ import Data.List (sortOn)
 import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Hie (withHieFile)
-import HieTypes (
-    ContextInfo (Use),
-    HieAST (..),
-    HieASTs (getAsts),
-    HieFile (..),
-    NodeInfo (..),
-    TypeIndex,
-    identInfo,
- )
+import HieTypes
+    ( ContextInfo (Use)
+    , HieAST (..)
+    , HieASTs (getAsts)
+    , HieFile (..)
+    , NodeInfo (..)
+    , TypeIndex
+    , identInfo
+    )
 import HieUtils (flattenAst)
 import Module (Module, moduleName, moduleNameString, moduleUnitId, unitIdString)
 import Name (Name, nameModule_maybe, nameOccName, occNameString)
-import System.Directory (
-    canonicalizePath,
-    doesDirectoryExist,
-    doesFileExist,
-    listDirectory,
-    withCurrentDirectory,
- )
+import System.Directory
+    ( canonicalizePath
+    , doesDirectoryExist
+    , doesFileExist
+    , listDirectory
+    , withCurrentDirectory
+    )
 import System.Exit (die)
 import System.FilePath (isExtensionOf)
 

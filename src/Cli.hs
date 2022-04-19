@@ -5,24 +5,24 @@ module Cli (main) where
 
 import DeclDeps (dumpDeclDeps)
 import Dump (dumpFile, initDynFlags)
-import Options.Applicative (
-    Parser,
-    command,
-    execParser,
-    fullDesc,
-    help,
-    helper,
-    info,
-    long,
-    metavar,
-    progDesc,
-    showDefault,
-    strArgument,
-    strOption,
-    subparser,
-    switch,
-    value,
- )
+import Options.Applicative
+    ( Parser
+    , command
+    , execParser
+    , fullDesc
+    , help
+    , helper
+    , info
+    , long
+    , metavar
+    , progDesc
+    , showDefault
+    , strArgument
+    , strOption
+    , subparser
+    , switch
+    , value
+    )
 import System.Exit (die)
 import System.FilePath (takeExtension)
 

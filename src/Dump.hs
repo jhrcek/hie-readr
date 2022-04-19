@@ -2,10 +2,11 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Dump (
-    initDynFlags,
-    dumpFile,
-) where
+module Dump
+    ( initDynFlags
+    , dumpFile
+    )
+where
 
 import qualified Data.Map.Strict as Map
 
@@ -13,35 +14,35 @@ import Data.Foldable (for_)
 import DynFlags (DynFlags, LlvmConfig (..), defaultDynFlags)
 import GHC.Paths (libdir)
 import Hie (withHieFile)
-import HieTypes (
-    HieAST (..),
-    HieASTs (getAsts),
-    HieFile (..),
-    Identifier,
-    IdentifierDetails (..),
-    NodeInfo (..),
- )
+import HieTypes
+    ( HieAST (..)
+    , HieASTs (getAsts)
+    , HieFile (..)
+    , Identifier
+    , IdentifierDetails (..)
+    , NodeInfo (..)
+    )
 import HieUtils (flattenAst, recoverFullType, renderHieType)
-import Outputable (
-    Outputable,
-    PrintUnqualified (QueryQualify),
-    SDoc,
-    alwaysQualifyModules,
-    alwaysQualifyPackages,
-    comma,
-    hang,
-    hsep,
-    nest,
-    parens,
-    ppr,
-    printForUser,
-    reallyAlwaysQualifyNames,
-    text,
-    vcat,
-    ($$),
-    (<+>),
-    (<>),
- )
+import Outputable
+    ( Outputable
+    , PrintUnqualified (QueryQualify)
+    , SDoc
+    , alwaysQualifyModules
+    , alwaysQualifyPackages
+    , comma
+    , hang
+    , hsep
+    , nest
+    , parens
+    , ppr
+    , printForUser
+    , reallyAlwaysQualifyNames
+    , text
+    , vcat
+    , ($$)
+    , (<+>)
+    , (<>)
+    )
 import SysTools (initSysTools)
 import System.IO (stdout)
 import Prelude hiding ((<>))
@@ -52,7 +53,6 @@ initDynFlags = do
     systemSettings <- initSysTools libdir
     pure $ defaultDynFlags systemSettings
 
-
 #if __GLASGOW_HASKELL__ >= 810
                         (LlvmConfig [] [])
 #else
@@ -62,6 +62,7 @@ initDynFlags = do
 #if __GLASGOW_HASKELL__ < 810
 instance Outputable SDoc where ppr = id
 #endif
+
 
 dumpFile :: DynFlags -> FilePath -> IO ()
 dumpFile dynFlags hieFilePath = withHieFile hieFilePath $ \HieFile{hie_hs_file, hie_types, hie_module, hie_asts} -> do
