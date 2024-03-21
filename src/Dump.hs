@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -8,34 +7,37 @@ module Dump
     )
 where
 
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 
 import Data.Foldable (for_)
-import DynFlags (DynFlags, LlvmConfig (..), defaultDynFlags)
-import GHC.Paths (libdir)
-import Hie (withHieFile)
-import HieTypes
+import GHC.Driver.Ppr (printForUser)
+import GHC.Driver.Session (DynFlags, LlvmConfig (..), defaultDynFlags)
+import GHC.Iface.Ext.Types
     ( HieAST (..)
     , HieASTs (getAsts)
     , HieFile (..)
     , Identifier
     , IdentifierDetails (..)
     , NodeInfo (..)
+    , SourcedNodeInfo (..)
     )
-import HieUtils (flattenAst, recoverFullType, renderHieType)
-import Outputable
-    ( Outputable
+import GHC.Iface.Ext.Utils (flattenAst, recoverFullType, renderHieType)
+import GHC.Paths (libdir)
+import GHC.SysTools (initSysTools)
+import GHC.Utils.Outputable
+    ( Depth (DefaultDepth)
+    , Outputable
     , PrintUnqualified (QueryQualify)
     , SDoc
     , alwaysQualifyModules
     , alwaysQualifyPackages
     , comma
+    , empty
     , hang
     , hsep
     , nest
     , parens
     , ppr
-    , printForUser
     , reallyAlwaysQualifyNames
     , text
     , vcat
@@ -43,7 +45,7 @@ import Outputable
     , (<+>)
     , (<>)
     )
-import SysTools (initSysTools)
+import Hie (withHieFile)
 import System.IO (stdout)
 import Prelude hiding ((<>))
 
@@ -51,17 +53,7 @@ import Prelude hiding ((<>))
 initDynFlags :: IO DynFlags
 initDynFlags = do
     systemSettings <- initSysTools libdir
-    pure $ defaultDynFlags systemSettings
-
-#if __GLASGOW_HASKELL__ >= 810
-                        (LlvmConfig [] [])
-#else
-                        ([], [])
-#endif
-
-#if __GLASGOW_HASKELL__ < 810
-instance Outputable SDoc where ppr = id
-#endif
+    pure $ defaultDynFlags systemSettings (LlvmConfig [] [])
 
 
 dumpFile :: DynFlags -> FilePath -> IO ()
@@ -78,32 +70,38 @@ dumpFile dynFlags hieFilePath = withHieFile hieFilePath $ \HieFile{hie_hs_file, 
         let astWithRecoveredTypes =
                 fmap (\typeIndex -> text $ renderHieType dynFlags $ recoverFullType typeIndex hie_types) ast
         putSDoc $ "AST for " <> ppr fs
-        for_ (flattenAst astWithRecoveredTypes) $ \Node{nodeSpan, nodeInfo, nodeChildren} -> do
+        for_ (flattenAst astWithRecoveredTypes) $ \Node{nodeSpan, sourcedNodeInfo, nodeChildren} -> do
             putSDoc $
                 nest 4 $
                     vcat
                         [ hsep ["Node at", ppr nodeSpan <> comma, ppr (length nodeChildren), "children"]
-                        , nest 4 $ nodeInfoSDoc nodeInfo
+                        , nest 4 $ sourcedNodeInfoSDoc sourcedNodeInfo
                         ]
   where
     putSDoc :: SDoc -> IO ()
-    putSDoc = printForUser dynFlags stdout qualifyEverything
+    putSDoc = printForUser dynFlags stdout qualifyEverything DefaultDepth
 
 
-nodeInfoSDoc :: Outputable a => NodeInfo a -> SDoc
-nodeInfoSDoc (NodeInfo annots nodeType nodeIdentifiers) =
-    vcat
-        [ "nodeAnnotations =" <+> ppr annots
-        , hang ("nodeType" <+> parens (ppr (length nodeType))) 4 $
-            vcat $ map ppr nodeType
-        , hang ("nodeIdentifiers" <+> parens (ppr $ Map.size nodeIdentifiers)) 4 $
-            vcat $
-                ( \(identifier, identDetails) ->
-                    identifierSDoc identifier
-                        $$ identifierDetailsSDoc identDetails
-                )
-                    <$> Map.toList nodeIdentifiers
-        ]
+sourcedNodeInfoSDoc :: Outputable a => SourcedNodeInfo a -> SDoc
+sourcedNodeInfoSDoc (SourcedNodeInfo m) =
+    case Map.elems m of
+        -- TODO print all values within the map
+        (ni : _) -> nodeInfoSDoc ni
+        [] -> empty
+  where
+    nodeInfoSDoc (NodeInfo annots nodeType nodeIdentifiers) =
+        vcat
+            [ "nodeAnnotations =" <+> ppr annots
+            , hang ("nodeType" <+> parens (ppr (length nodeType))) 4 $
+                vcat $ map ppr nodeType
+            , hang ("nodeIdentifiers" <+> parens (ppr $ Map.size nodeIdentifiers)) 4 $
+                vcat $
+                    ( \(identifier, identDetails) ->
+                        identifierSDoc identifier
+                            $$ identifierDetailsSDoc identDetails
+                    )
+                        <$> Map.toList nodeIdentifiers
+            ]
 
 
 identifierSDoc :: Identifier -> SDoc

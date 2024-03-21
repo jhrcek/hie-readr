@@ -1,6 +1,6 @@
 module Main (main) where
 
-import qualified Cli
+import Cli qualified
 
 
 main :: IO ()

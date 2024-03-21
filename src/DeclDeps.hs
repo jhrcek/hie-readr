@@ -8,9 +8,9 @@ We say that Declaration X depends on Y if Y is used anywhere in the declaration 
 -}
 module DeclDeps (dumpDeclDeps) where
 
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 
 import Control.Monad (when)
 import Data.Bifunctor (Bifunctor (bimap))
@@ -19,20 +19,24 @@ import Data.Containers.ListUtils (nubOrd)
 import Data.Function ((&))
 import Data.List (sortOn)
 import Data.Maybe (mapMaybe)
+import Data.Monoid (First (..))
 import Data.Text (Text)
-import Hie (withHieFile)
-import HieTypes
+import GHC.Iface.Ext.Types
     ( ContextInfo (Use)
     , HieAST (..)
     , HieASTs (getAsts)
     , HieFile (..)
+    , NodeAnnotation (..)
     , NodeInfo (..)
+    , SourcedNodeInfo (getSourcedNodeInfo)
     , TypeIndex
     , identInfo
     )
-import HieUtils (flattenAst)
-import Module (Module, moduleName, moduleNameString, moduleUnitId, unitIdString)
-import Name (Name, nameModule_maybe, nameOccName, occNameString)
+import GHC.Iface.Ext.Utils (flattenAst)
+import GHC.Types.Name (Name, nameModule_maybe, nameOccName, occNameString)
+import GHC.Unit.Module.Name (moduleNameString)
+import GHC.Unit.Types (GenModule (moduleName), Module, moduleUnit, unitString)
+import Hie (withHieFile)
 import System.Directory
     ( canonicalizePath
     , doesDirectoryExist
@@ -64,12 +68,15 @@ findTopLevelDeclAsts ast
 
 
 isTopLevelDecl :: HieAST a -> Bool
-isTopLevelDecl Node{nodeInfo} =
+isTopLevelDecl Node{sourcedNodeInfo} =
     -- Assumption: which  HieAST Node constitutes a top level definition can only be determined from nodeAnnotations
-    let anns = nodeAnnotations nodeInfo
-     in (Set.member ("AbsBinds", "HsBindLR") anns && Set.member ("FunBind", "HsBindLR") anns && Set.member ("Match", "Match") anns)
-            || Set.member ("DataDecl", "TyClDecl") anns
-            || Set.member ("DataDecl", "TyClDecl") anns
+    let anns = Set.unions $ fmap nodeAnnotations . Map.elems $ getSourcedNodeInfo sourcedNodeInfo
+     in ( Set.member (NodeAnnotation "AbsBinds" "HsBindLR") anns
+            && Set.member (NodeAnnotation "FunBind" "HsBindLR") anns
+            && Set.member (NodeAnnotation "Match" "Match") anns
+        )
+            || Set.member (NodeAnnotation "DataDecl" "TyClDecl") anns
+            || Set.member (NodeAnnotation "DataDecl" "TyClDecl") anns
 
 
 getTopLevelDeclSymbol :: Module -> HieAST a -> Maybe Symbol
@@ -79,21 +86,38 @@ getTopLevelDeclSymbol currentModule Node{nodeChildren} =
         -- Assumption: The name of the top-level definition can be extracted from the first child of the definition node
         (firstChild : _) -> case firstChild of
             -- Assumption: it's ok to just look at the first identifier (if any)
-            Node{nodeInfo} -> case Map.lookupMin (nodeIdentifiers nodeInfo) of
-                Just (Right name {- Lefts contain ModuleName (e.g. in imports) -}, _) -> Just $ mkSymbol name currentModule
-                _ -> Nothing
+            Node{sourcedNodeInfo} -> do
+                -- TODO look at why there's map of nodeInfos instead of just one
+                let nodeInfos = Map.elems $ getSourcedNodeInfo sourcedNodeInfo
+                getFirst $
+                    foldMap
+                        ( First
+                            . ( \nodeInfo -> case Map.lookupMin (nodeIdentifiers nodeInfo) of
+                                    Just (Right name {- Lefts contain ModuleName (e.g. in imports) -}, _) ->
+                                        Just $ mkSymbol name currentModule
+                                    _ -> Nothing
+                              )
+                        )
+                        nodeInfos
 
 
 getUsedSymbols :: HieAST a -> [Symbol]
 getUsedSymbols =
     sortOn symbolName
         . nubOrd
-        . mapMaybe
-            ( \Node{nodeInfo} -> case Map.lookupMin (nodeIdentifiers nodeInfo) of
-                Just (Right name, identDetails)
-                    | Set.member Use (identInfo identDetails) ->
-                        fmap (mkSymbol name) (nameModule_maybe name)
-                _ -> Nothing
+        . concatMap
+            ( \Node{sourcedNodeInfo} -> do
+                let nodeInfos = Map.elems $ getSourcedNodeInfo sourcedNodeInfo
+                concatMap
+                    ( \nodeInfo -> case Map.lookupMin (nodeIdentifiers nodeInfo) of
+                        Just (Right name, identDetails)
+                            | Set.member Use (identInfo identDetails) ->
+                                case nameModule_maybe name of
+                                    Nothing -> []
+                                    Just m -> [mkSymbol name m]
+                        _ -> []
+                    )
+                    nodeInfos
             )
         . flattenAst
 
@@ -101,7 +125,7 @@ getUsedSymbols =
 mkSymbol :: Name -> Module -> Symbol
 mkSymbol name modul =
     Symbol
-        (PackageName . Text.pack . unitIdString $ moduleUnitId modul)
+        (PackageName . Text.pack . unitString $ moduleUnit modul)
         (ModuleName . Text.pack . moduleNameString $ moduleName modul)
         (SymbolName . Text.pack . occNameString $ nameOccName name)
 

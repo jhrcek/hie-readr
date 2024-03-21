@@ -1,13 +1,10 @@
 .PHONY: format
 format:
-	git ls-files '*.hs' | xargs fourmolu -i
+	git ls-files '*.hs' | xargs fourmolu --mode inplace --cabal-default-extensions
 	cabal-fmt --inplace hie-readr.cabal
 
-.PHONY: install884
-install884:
-	stack install --resolver lts-16.31
 
-.PHONY: install8107
-install8107:
+.PHONY: install
+install:
 	stack install
 
