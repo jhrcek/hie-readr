@@ -93,7 +93,8 @@ sourcedNodeInfoSDoc (SourcedNodeInfo m) =
         vcat
             [ "nodeAnnotations =" <+> ppr annots
             , hang ("nodeType" <+> parens (ppr (length nodeType))) 4 $
-                vcat $ map ppr nodeType
+                vcat $
+                    map ppr nodeType
             , hang ("nodeIdentifiers" <+> parens (ppr $ Map.size nodeIdentifiers)) 4 $
                 vcat $
                     ( \(identifier, identDetails) ->

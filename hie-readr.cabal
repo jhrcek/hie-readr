@@ -18,6 +18,8 @@ extra-source-files:
   ChangeLog.md
   README.md
 
+tested-with:        GHC ==9.4.8
+
 source-repository head
   type:     git
   location: https://github.com/jhrcek/hie-readr
@@ -27,10 +29,10 @@ common common-options
   build-depends:      base >=4.7 && <5
   default-extensions: ImportQualifiedPost
   ghc-options:
-    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wcompat -Widentities -Wredundant-constraints -Wpartial-fields
-    -Wno-unrecognised-pragmas -Wmissing-deriving-strategies
-    -fwrite-ide-info -hiedir=hie
+    -Wall -Wcompat -Widentities -Wincomplete-record-updates
+    -Wincomplete-uni-patterns -Wmissing-deriving-strategies
+    -Wmissing-export-lists -Wno-unrecognised-pragmas -Wpartial-fields
+    -Wredundant-constraints -Wunused-packages
 
 library
   import:          common-options
@@ -63,4 +65,5 @@ test-suite hie-readr-test
   main-is:        Spec.hs
   hs-source-dirs: test
   ghc-options:    -threaded -rtsopts -with-rtsopts=-N
-  build-depends:  hie-readr
+
+--build-depends:  hie-readr

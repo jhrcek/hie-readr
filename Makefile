@@ -1,6 +1,6 @@
 .PHONY: format
 format:
-	git ls-files '*.hs' | xargs fourmolu --mode inplace --cabal-default-extensions
+	git ls-files '*.hs' | xargs fourmolu -i --unsafe
 	cabal-fmt --inplace hie-readr.cabal
 
 
