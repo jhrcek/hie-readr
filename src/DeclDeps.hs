@@ -28,6 +28,7 @@ import GHC.Iface.Ext.Types
     , HieFile (..)
     , NodeAnnotation (..)
     , NodeInfo (..)
+    , NodeOrigin (..)
     , SourcedNodeInfo (getSourcedNodeInfo)
     , TypeIndex
     , identInfo
@@ -53,11 +54,15 @@ extractDeclDeps hieFilePath = withHieFile hieFilePath $ \HieFile{hie_module, hie
     let topLevelDeclAsts :: [HieAST TypeIndex]
         topLevelDeclAsts =
             getAsts hie_asts
-                & Map.elems
                 & concatMap findTopLevelDeclAsts
 
     topLevelDeclAsts
-        & mapMaybe (\hieAst -> fmap (,getUsedSymbols hieAst) (getTopLevelDeclSymbol hie_module hieAst))
+        & mapMaybe
+            ( \hieAst ->
+                fmap
+                    (,getUsedSymbols hieAst)
+                    (getTopLevelDeclSymbol hie_module hieAst)
+            )
         & pure
 
 
@@ -70,8 +75,8 @@ findTopLevelDeclAsts ast
 isTopLevelDecl :: HieAST a -> Bool
 isTopLevelDecl Node{sourcedNodeInfo} =
     -- Assumption: which  HieAST Node constitutes a top level definition can only be determined from nodeAnnotations
-    let anns = Set.unions $ fmap nodeAnnotations . Map.elems $ getSourcedNodeInfo sourcedNodeInfo
-     in ( Set.member (NodeAnnotation "AbsBinds" "HsBindLR") anns
+    let anns = foldMap nodeAnnotations $ getSourcedNodeInfo sourcedNodeInfo
+     in ( Set.member (NodeAnnotation "XHsBindsLR" "HsBindLR") anns
             && Set.member (NodeAnnotation "FunBind" "HsBindLR") anns
             && Set.member (NodeAnnotation "Match" "Match") anns
         )
@@ -107,17 +112,16 @@ getUsedSymbols =
         . nubOrd
         . concatMap
             ( \Node{sourcedNodeInfo} -> do
-                let nodeInfos = Map.elems $ getSourcedNodeInfo sourcedNodeInfo
-                concatMap
-                    ( \nodeInfo -> case Map.lookupMin (nodeIdentifiers nodeInfo) of
-                        Just (Right name, identDetails)
-                            | Set.member Use (identInfo identDetails) ->
-                                case nameModule_maybe name of
-                                    Nothing -> []
-                                    Just m -> [mkSymbol name m]
-                        _ -> []
-                    )
-                    nodeInfos
+                case Map.lookup SourceInfo $ getSourcedNodeInfo sourcedNodeInfo of
+                    Nothing -> []
+                    Just nodeInfo ->
+                        case Map.lookupMin (nodeIdentifiers nodeInfo) of
+                            Just (Right name, identDetails)
+                                | Set.member Use (identInfo identDetails) ->
+                                    case nameModule_maybe name of
+                                        Nothing -> []
+                                        Just m -> [mkSymbol name m]
+                            _ -> []
             )
         . flattenAst
 
