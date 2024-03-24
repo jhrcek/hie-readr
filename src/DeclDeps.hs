@@ -30,7 +30,6 @@ import GHC.Iface.Ext.Types
     , NodeInfo (..)
     , NodeOrigin (..)
     , SourcedNodeInfo (getSourcedNodeInfo)
-    , TypeIndex
     , identInfo
     )
 import GHC.Iface.Ext.Utils (flattenAst)
@@ -50,20 +49,18 @@ import System.FilePath (isExtensionOf)
 
 
 extractDeclDeps :: FilePath -> IO DeclDeps
-extractDeclDeps hieFilePath = withHieFile hieFilePath $ \HieFile{hie_module, hie_asts} -> do
-    let topLevelDeclAsts :: [HieAST TypeIndex]
-        topLevelDeclAsts =
-            getAsts hie_asts
-                & concatMap findTopLevelDeclAsts
-
-    topLevelDeclAsts
-        & mapMaybe
-            ( \hieAst ->
-                fmap
-                    (,getUsedSymbols hieAst)
-                    (getTopLevelDeclSymbol hie_module hieAst)
+extractDeclDeps hieFilePath = withHieFile hieFilePath $ \HieFile{hie_module, hie_asts} ->
+    pure
+        $ concatMap
+            ( mapMaybe
+                ( \hieAst ->
+                    fmap
+                        (,getUsedSymbols hieAst)
+                        (getTopLevelDeclSymbol hie_module hieAst)
+                )
+                . findTopLevelDeclAsts
             )
-        & pure
+        $ getAsts hie_asts
 
 
 findTopLevelDeclAsts :: HieAST a -> [HieAST a]
@@ -111,17 +108,23 @@ getUsedSymbols =
     sortOn symbolName
         . nubOrd
         . concatMap
-            ( \Node{sourcedNodeInfo} -> do
+            ( \Node{sourcedNodeInfo} ->
                 case Map.lookup SourceInfo $ getSourcedNodeInfo sourcedNodeInfo of
                     Nothing -> []
                     Just nodeInfo ->
-                        case Map.lookupMin (nodeIdentifiers nodeInfo) of
-                            Just (Right name, identDetails)
-                                | Set.member Use (identInfo identDetails) ->
-                                    case nameModule_maybe name of
-                                        Nothing -> []
-                                        Just m -> [mkSymbol name m]
-                            _ -> []
+                        nodeIdentifiers nodeInfo
+                            & Map.toList
+                            & concatMap
+                                ( \(identifier, identDetails) ->
+                                    case identifier of
+                                        Right name
+                                            | Set.member Use (identInfo identDetails) ->
+                                                case nameModule_maybe name of
+                                                    Just m -> [mkSymbol name m]
+                                                    Nothing -> []
+                                            | otherwise -> []
+                                        Left _moduleName -> []
+                                )
             )
         . flattenAst
 
