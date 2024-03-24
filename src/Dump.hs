@@ -10,7 +10,8 @@ where
 import Data.Map.Strict qualified as Map
 
 import Data.Foldable (for_)
-import GHC.Driver.Ppr (printForUser)
+import Data.Tree qualified as Tree
+import GHC.Driver.Ppr (printForUser, showSDoc)
 import GHC.Driver.Session (DynFlags, LlvmConfig (..), defaultDynFlags)
 import GHC.Iface.Ext.Types
     ( HieAST (..)
@@ -19,9 +20,11 @@ import GHC.Iface.Ext.Types
     , Identifier
     , IdentifierDetails (..)
     , NodeInfo (..)
+    , NodeOrigin (..)
     , SourcedNodeInfo (..)
+    , Span
     )
-import GHC.Iface.Ext.Utils (flattenAst, recoverFullType, renderHieType)
+import GHC.Iface.Ext.Utils (recoverFullType, renderHieType)
 import GHC.Paths (libdir)
 import GHC.SysTools (initSysTools)
 import GHC.Utils.Outputable
@@ -32,7 +35,6 @@ import GHC.Utils.Outputable
     , alwaysQualifyModules
     , alwaysQualifyPackages
     , comma
-    , empty
     , hang
     , hsep
     , nest
@@ -66,28 +68,59 @@ dumpFile dynFlags hieFilePath = withHieFile hieFilePath $ \HieFile{hie_hs_file, 
     putStrLn "--- hie_asts (Type-annotated abstract syntax trees)"
     let m = getAsts hie_asts
     putStrLn $ "    Contains a map of size " ++ show (Map.size m)
-    for_ (Map.toList m) $ \(fs, ast) -> do
+    for_ (Map.toList m) $ \(hiePath, hieAst) -> do
         let astWithRecoveredTypes =
-                fmap (\typeIndex -> text $ renderHieType dynFlags $ recoverFullType typeIndex hie_types) ast
-        putSDoc $ "AST for " <> ppr fs
-        for_ (flattenAst astWithRecoveredTypes) $ \Node{nodeSpan, sourcedNodeInfo, nodeChildren} -> do
-            putSDoc $
-                nest 4 $
-                    vcat
-                        [ hsep ["Node at", ppr nodeSpan <> comma, ppr (length nodeChildren), "children"]
-                        , nest 4 $ sourcedNodeInfoSDoc sourcedNodeInfo
-                        ]
+                fmap (\typeIndex -> text $ renderHieType dynFlags $ recoverFullType typeIndex hie_types) hieAst
+        putSDoc $ "AST for " <> ppr hiePath
+        putStrLn $
+            drawTree $
+                showNode myShowSDoc <$> toTree myShowSDoc astWithRecoveredTypes
   where
     putSDoc :: SDoc -> IO ()
     putSDoc = printForUser dynFlags stdout qualifyEverything DefaultDepth
+    myShowSDoc = showSDoc dynFlags
+
+
+toTree :: (SDoc -> String) -> HieAST SDoc -> Tree.Tree (SourcedNodeInfo SDoc, Span)
+toTree showSDoc_ Node{nodeSpan, sourcedNodeInfo, nodeChildren} =
+    Tree.Node (sourcedNodeInfo, nodeSpan) (toTree showSDoc_ <$> nodeChildren)
+
+
+showNode :: (SDoc -> String) -> (SourcedNodeInfo SDoc, Span) -> String
+showNode showSDoc_ (sourcedNodeInfo, spn) =
+    showSDoc_ $
+        vcat
+            [ hsep ["Node at", ppr spn <> comma]
+            , nest 4 $ sourcedNodeInfoSDoc sourcedNodeInfo
+            ]
+
+
+-- Copied from containers' Data.Tree, modified with nicer box-drawing characters
+drawTree :: Tree.Tree String -> String
+drawTree = unlines . draw
+
+
+draw :: Tree.Tree String -> [String]
+draw (Tree.Node x ts0) = lines x ++ drawSubTrees ts0
+  where
+    drawSubTrees [] = []
+    drawSubTrees [t] =
+        "│" : shift "└─ " "   " (draw t)
+    drawSubTrees (t : ts) =
+        "│" : shift "├─ " "│  " (draw t) ++ drawSubTrees ts
+
+    shift first other = zipWith (++) (first : repeat other)
 
 
 sourcedNodeInfoSDoc :: Outputable a => SourcedNodeInfo a -> SDoc
 sourcedNodeInfoSDoc (SourcedNodeInfo m) =
-    case Map.elems m of
-        -- TODO print all values within the map
-        (ni : _) -> nodeInfoSDoc ni
-        [] -> empty
+    vcat $
+        ( \(nodeOrigin, nodeInfo) ->
+            case nodeOrigin of
+                SourceInfo -> hang "SourceInfo" 4 $ nodeInfoSDoc nodeInfo
+                GeneratedInfo -> hang "GeneratedInfo" 4 $ nodeInfoSDoc nodeInfo
+        )
+            <$> Map.toList m
   where
     nodeInfoSDoc (NodeInfo annots nodeType nodeIdentifiers) =
         vcat
